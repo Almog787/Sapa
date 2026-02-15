@@ -1,0 +1,41 @@
+name: Stock System: Track & Report
+
+on:
+  schedule:
+    # רץ כל שעה עגולה, ב'-ו', בין 14:00 ל-22:00 UTC (שעות המסחר בארה"ב)
+    - cron: '0 14-22 * * 1-5'
+  workflow_dispatch: # מאפשר לך להפעיל ידנית בכפתור Run Workflow
+
+permissions:
+  contents: write
+
+jobs:
+  update_portfolio:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: pip install pandas pytz yfinance
+
+      - name: 1. Collect Data
+        # וודא שזה השם שנתת לקובץ שאוסף את הנתונים
+        run: python stock_tracker.py 
+
+      - name: 2. Generate Report
+        # וודא שזה השם שנתת לקובץ שיוצר את ה-README
+        run: python generate_report.py 
+
+      - name: Commit & Push Updates
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "📊 Portfolio Update: Data & Report [skip ci]"
+          # כאן אנחנו שומרים את כל השינויים שהסקריפטים עשו
+          file_pattern: 'stock_history.json README.md error_log.txt'
