@@ -2,13 +2,17 @@ name: Price Tracker Bot
 
 on:
   schedule:
-    # הרצה כל 15 דקות
     - cron: '*/15 * * * *'
-  workflow_dispatch: # מאפשר הרצה ידנית לבדיקה
+  workflow_dispatch:
+    inputs:
+      category_url:
+        description: 'הדבק לינק לדף קטגוריה לחילוץ מוצרים חדשים'
+        required: false
+        default: ''
 
 permissions:
   contents: write
-  issues: write # נדרש כדי לאפשר לבוט לפתוח Issue
+  issues: write
 
 jobs:
   scrape-and-report:
@@ -17,6 +21,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -25,20 +31,26 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          pip install requests beautifulsoup4 pandas pytz
 
-      - name: Run Scraper
-        run: python scraper.py
+      - name: Run Scraper Logic
+        id: run_script
+        run: |
+          if [ "${{ github.event.inputs.category_url }}" != "" ]; then
+            python scraper.py --discover "${{ github.event.inputs.category_url }}"
+          else
+            python scraper.py
+          fi
 
       - name: Commit and Push changes
-        id: auto_commit # הוספת מזהה כדי שנוכל לבדוק אם היה שינוי
+        id: auto_commit
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🤖 Update price data [skip ci]"
-          file_pattern: 'README.md data.json'
+          commit_message: "🤖 Update price data and URLs [skip ci]"
+          file_pattern: 'README.md data.json urls.txt'
+          push_options: '--force'
 
       - name: Create Issue on Price Change
-        # השלב הזה ירוץ רק אם ה-commit באמת התבצע (כלומר הקבצים השתנו)
         if: steps.auto_commit.outputs.changes_detected == 'true'
         uses: actions/github-script@v7
         with:
@@ -47,6 +59,6 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: '📢 התראת מחיר: נמצא שינוי בנתונים!',
-              body: 'הבוט זיהה שינוי במחיר ועדכן את הקבצים במאגר. \n\n[צפה בשינויים](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/commits/main)',
-              assignees: [context.repo.owner] // מתייג אותך אוטומטית כדי שתקבל התראה
+              body: 'הבוט זיהה שינוי במחיר או בקישורים. בדוק את דף ה-README לפרטים.',
+              assignees: [context.repo.owner]
             })
