@@ -11,8 +11,7 @@ import time
 PRODUCTS = [
     {"url": "https://www.ace.co.il/5760921", "name": "ACE - Leader Sofa"},
     {"url": "https://www.zilberahit.co.il/product/%D7%A1%D7%A4%D7%94-%D7%A4%D7%99%D7%A0%D7%AA%D7%99%D7%AA-%D7%9C%D7%99%D7%93%D7%A8-leader/", "name": "Zilber - Leader Sofa"},
-    {"url": "https://www.shufersal.co.il/online/he/p/P_7296073387848", "name": "Shufersal - Mezzo (Similar)"}
-]
+    
 
 DATA_FILE = "data.json"
 README_FILE = "README.md"
