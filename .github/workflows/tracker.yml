@@ -1,15 +1,15 @@
-name: Update README Report
+name: Hourly Stock Tracker & Backfill
 
 on:
   schedule:
-    - cron: '0 2 * * *' # רץ ב-2 בלילה
-  workflow_dispatch: # מאפשר הפעלה ידנית
+    - cron: '0 * * * 1-5' # כל שעה עגולה בימי שני עד שישי
+  workflow_dispatch: # הפעלה ידנית במידת הצורך
 
 permissions:
   contents: write
 
 jobs:
-  report:
+  track:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,15 +21,14 @@ jobs:
           python-version: '3.9'
 
       - name: Install dependencies
-        run: |
-          pip install pandas pytz yfinance  # <--- כאן הוספנו את yfinance
+        run: pip install yfinance pytz
 
-      - name: Generate Report
-        run: python generate_report.py
+      - name: Run Tracker
+        run: python stock_tracker.py
 
-      - name: Commit Report
+      - name: Commit Data
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "📊 README Report updated [skip ci]"
-          file_pattern: 'README.md'
+          commit_message: "🗄️ Stock data updated [skip ci]"
+          file_pattern: 'stock_history.json'
           push_options: '--force'
