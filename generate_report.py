@@ -1,16 +1,19 @@
 import json
 import pandas as pd
 import yfinance as yf
+import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import pytz
 import os
 import logging
 
-# --- Configuration ---
+# --- Configuration & Constants ---
 HISTORY_FILE = "stock_history.json"
 PORTFOLIO_FILE = "portfolio.json"
 README_FILE = "README.md"
 LOG_FILE = "error_log.txt"
+CHART_FILE = "portfolio_performance.png"
+PIE_FILE = "asset_allocation.png"
 TZ = pytz.timezone('Israel')
 ANCHOR_DAY = 10
 
@@ -22,62 +25,67 @@ logging.basicConfig(filename=LOG_FILE, level=logging.ERROR,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 def get_live_usd_ils():
-    """Fetches current USD/ILS exchange rate."""
+    """Fetches the current USD/ILS exchange rate."""
     try:
         ticker = yf.Ticker("ILS=X")
         data = ticker.history(period="1d")
         return data['Close'].iloc[-1] if not data.empty else 3.65
-    except:
+    except Exception as e:
+        logging.error(f"Exchange rate error: {e}")
         return 3.65
 
 def calculate_portfolio_value(row, holdings, tickers):
-    """Helper to calculate total USD value for a specific history row."""
+    """Calculates total portfolio value in USD for a given row of prices."""
     return sum(row[t] * holdings[t] for t in tickers if t in row)
 
-def get_monthly_performance(df, holdings, tickers, usd_rate):
-    """Calculates performance windows from 10th to 10th."""
-    perf_records = []
-    df = df.sort_values('ts')
+def generate_visuals(df, holdings, usd_rate):
+    """Generates performance and allocation charts using matplotlib."""
+    plt.switch_backend('Agg') # Non-GUI backend for GitHub Actions
     
-    # Get unique months/years in the data
-    df['year_month'] = df['ts'].dt.to_period('M')
-    available_months = sorted(df['year_month'].unique(), reverse=True)
+    # 1. Performance Chart (Portfolio vs S&P 500)
+    plt.figure(figsize=(10, 5))
     
-    for i in range(len(available_months) - 1):
-        try:
-            current_month = available_months[i]
-            prev_month = available_months[i+1]
-            
-            target_end = datetime(current_month.year, current_month.month, ANCHOR_DAY)
-            target_start = datetime(prev_month.year, prev_month.month, ANCHOR_DAY)
-            
-            # Find closest available data points
-            end_row = df[df['ts'] <= target_end].iloc[-1]
-            start_row = df[df['ts'] <= target_start].iloc[-1]
-            
-            if start_row['ts'] == end_row['ts']:
-                continue
-                
-            val_start = calculate_portfolio_value(start_row, holdings, tickers)
-            val_end = calculate_portfolio_value(end_row, holdings, tickers)
-            
-            perf_records.append({
-                "period": f"{start_row['ts'].strftime('%d/%m')} - {end_row['ts'].strftime('%d/%m/%y')}",
-                "return": ((val_end / val_start) - 1) * 100,
-                "gain_ils": (val_end - val_start) * usd_rate
-            })
-        except (IndexError, Exception):
-            continue
-    return perf_records
+    # Normalize values to 100 for comparison
+    portfolio_norm = (df['total_usd'] / df['total_usd'].iloc[0]) * 100
+    
+    plt.plot(df['ts'], portfolio_norm, label='My Portfolio', color='#1f77b4', linewidth=2)
+    
+    # Fetch Benchmark (S&P 500)
+    try:
+        spy = yf.Ticker("^GSPC").history(start=df['ts'].min(), end=df['ts'].max() + timedelta(days=1))
+        if not spy.empty:
+            spy_norm = (spy['Close'] / spy['Close'].iloc[0]) * 100
+            plt.plot(spy.index, spy_norm, label='S&P 500 (Benchmark)', color='#ff7f0e', linestyle='--')
+    except:
+        pass
+
+    plt.title('Portfolio vs Benchmark (Normalized to 100)')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.savefig(CHART_FILE)
+    plt.close()
+
+    # 2. Allocation Pie Chart
+    last_prices = df.iloc[-1]
+    values = [last_prices[t] * holdings[t] for t in holdings.keys() if t in last_prices]
+    labels = [t for t in holdings.keys() if t in last_prices]
+    
+    plt.figure(figsize=(7, 7))
+    plt.pie(values, labels=labels, autopct='%1.1f%%', startangle=140, colors=plt.cm.Paired.colors)
+    plt.title('Asset Allocation')
+    plt.savefig(PIE_FILE)
+    plt.close()
 
 def main():
     if not os.path.exists(HISTORY_FILE) or not os.path.exists(PORTFOLIO_FILE):
+        logging.error("Required files missing.")
         return
 
     try:
         with open(PORTFOLIO_FILE, 'r') as f: holdings = json.load(f)
         with open(HISTORY_FILE, 'r') as f: history = json.load(f)
-    except:
+    except Exception as e:
+        logging.error(f"JSON Read Error: {e}")
         return
 
     if not history: return
@@ -85,60 +93,58 @@ def main():
     usd_to_ils = get_live_usd_ils()
     tickers = list(holdings.keys())
     
-    # Process history into DataFrame
+    # DataFrame Processing
     df = pd.DataFrame([{"ts": e['timestamp'], **e['prices']} for e in history])
     df['ts'] = pd.to_datetime(df['ts']).dt.tz_localize(None)
     df = df.sort_values('ts')
     
-    # Values for calculations
-    first_row = df.iloc[0]
-    last_row = df.iloc[-1]
+    # Core Calculations
+    df['total_usd'] = df.apply(lambda r: calculate_portfolio_value(r, holdings, tickers), axis=1)
     
-    initial_val_usd = calculate_portfolio_value(first_row, holdings, tickers)
-    current_val_usd = calculate_portfolio_value(last_row, holdings, tickers)
+    current_val_usd = df['total_usd'].iloc[-1]
+    initial_val_usd = df['total_usd'].iloc[0]
+    total_ret = ((current_val_usd / initial_val_usd) - 1) * 100
     
-    # Total P/L calculation
-    total_return = ((current_val_usd / initial_val_usd) - 1) * 100
-    total_gain_ils = (current_val_usd - initial_val_usd) * usd_to_ils
+    # Risk Metric: Max Drawdown
+    rolling_max = df['total_usd'].cummax()
+    drawdown = (df['total_usd'] / rolling_max) - 1
+    max_drawdown = drawdown.min() * 100
 
-    # Build Output
+    # Best/Worst Performers (Last 30 days or available)
+    start_prices = df.iloc[0]
+    last_prices = df.iloc[-1]
+    perf_map = {t: ((last_prices[t]/start_prices[t])-1)*100 for t in tickers if t in start_prices and t in last_prices}
+    best_stock = max(perf_map, key=perf_map.get)
+    worst_stock = min(perf_map, key=perf_map.get)
+
+    # Generate Images
+    generate_visuals(df, holdings, usd_to_ils)
+
+    # --- Build README ---
     output = [
-        f"# 📈 דוח ביצועי תיק מניות", 
+        f"# 📊 Portfolio Dashboard",
         f"**עודכן ב:** {datetime.now(TZ).strftime('%d/%m/%Y %H:%M')} | **שער דולר:** ₪{usd_to_ils:.3f}\n",
-        f"## 💰 סיכום רווח מצטבר (מתחילת התיעוד)",
-        f"- **רווח כולל:** `₪{total_gain_ils:,.0f}`",
-        f"- **תשואה כוללת:** `{total_return:+.2f}%`",
-        f"- **תאריך תחילת מעקב:** {first_row['ts'].strftime('%d/%m/%Y')}\n"
+        f"## 💰 סיכום ביצועים כולל",
+        f"- **שווי תיק:** `₪{current_val_usd * usd_to_ils:,.0f}`",
+        f"- **תשואה מצטברת:** `{total_ret:+.2f}%`",
+        f"- **מקס' ירידה מהשיא (Drawdown):** `{max_drawdown:.2f}%`",
+        f"- **מניית החודש 🚀:** {best_stock} ({perf_map[best_stock]:+.1f}%)",
+        f"- **המאכזבת 📉:** {worst_stock} ({perf_map[worst_stock]:+.1f}%)\n",
+        f"## 📈 גרף ביצועים",
+        f"![Performance](./{CHART_FILE})\n",
+        f"## 🥧 התפלגות נכסים",
+        f"![Allocation](./{PIE_FILE})\n",
+        f"## 📊 פירוט אחזקות",
+        f"| מניה | כמות | שווי (₪) | משקל בתיק |",
+        f"| :--- | :--- | :--- | :--- |"
     ]
 
-    # Calculate Monthly Windows
-    performance_data = get_monthly_performance(df, holdings, tickers, usd_to_ils)
-    
-    if performance_data:
-        latest = performance_data[0]
-        output.append(f"## 🏆 ביצועים לחודש האחרון ({latest['period']})")
-        output.append(f"- **תשואה:** `{latest['return']:+.2f}%` | **רווח:** `₪{latest['gain_ils']:,.0f}`\n")
-
-        output.append("## 📅 היסטוריית רווחים (מ-10 ל-10)")
-        output.append("| תקופה | תשואה | רווח/הפסד |")
-        output.append("| :--- | :--- | :--- |")
-        for record in performance_data[:12]:
-            icon = "🟢" if record['return'] >= 0 else "🔴"
-            output.append(f"| {record['period']} | {icon} `{record['return']:+.2f}%` | `₪{record['gain_ils']:,.0f}` |")
-        output.append("")
-
-    # Holdings Table
-    output.append("## 📊 פירוט אחזקות")
-    output.append("| מניה | כמות | שווי (₪) |")
-    output.append("| :--- | :--- | :--- |")
     for t in tickers:
-        if t in last_row:
-            val = last_row[t] * holdings[t] * usd_to_ils
-            output.append(f"| {t} | {holdings[t]} | ₪{val:,.0f} |")
+        if t in last_prices:
+            val_ils = last_prices[t] * holdings[t] * usd_to_ils
+            weight = (last_prices[t] * holdings[t] / current_val_usd) * 100
+            output.append(f"| {t} | {holdings[t]} | ₪{val_ils:,.0f} | {weight:.1f}% |")
 
-    output.append(f"\n**שווי כולל:** `₪{current_val_usd * usd_to_ils:,.0f}`")
-
-    # Save to README
     with open(README_FILE, 'w', encoding='utf-8') as f:
         f.write("\n".join(output))
 
