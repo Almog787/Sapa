@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  process:
+  run-system:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -20,18 +20,18 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Install Deps
-        run: pip install pandas pytz yfinance matplotlib
+      - name: Install Dependencies
+        run: pip install pandas yfinance pytz matplotlib
 
-      - name: Run Tracker
+      - name: Fetch Data
         run: python stock_tracker.py
 
-      - name: Run Report
+      - name: Generate Report
         run: python generate_report.py
 
-      - name: Push Changes
+      - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "System Run: Analytics & Archive Update [skip ci]"
-          # Added archive/ and updated the pattern to be more inclusive
-          file_pattern: 'stock_history.json README.md error_log.txt archive/charts/*.png *.png'
+          commit_message: "System sync: data_hub updated"
+          # עוקב אחרי כל התיקייה החדשה כולל הכל
+          file_pattern: 'data_hub/ README.md'
