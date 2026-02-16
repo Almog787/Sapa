@@ -1,8 +1,8 @@
 name: Finance System & Web Deploy
 
 on:
-  schedule:
-    - cron: '0 14-22 * * 1-5' # רץ בכל שעה עגולה בשעות המסחר (שעון UTC)
+#  schedule:
+#    - cron: '0 14-22 * * 1-5' # רץ בכל שעה עגולה בשעות המסחר (שעון UTC)
   workflow_dispatch: # מאפשר לך להריץ ידנית בלחיצת כפתור
 
 permissions:
