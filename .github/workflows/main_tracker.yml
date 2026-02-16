@@ -32,5 +32,6 @@ jobs:
       - name: Push Changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "Analytics Update [skip ci]"
-          file_pattern: 'stock_history.json README.md error_log.txt *.png'
+          commit_message: "System Run: Analytics & Archive Update [skip ci]"
+          # Added archive/ and updated the pattern to be more inclusive
+          file_pattern: 'stock_history.json README.md error_log.txt archive/charts/*.png *.png'
