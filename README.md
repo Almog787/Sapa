@@ -1,16 +1,28 @@
-# 📈 Stock Portfolio Dashboard
-**Last Sync:** 16/02/2026 08:57 (Israel Time)
+# 📊 Portfolio Dashboard
+**עודכן ב:** 16/02/2026 09:01 | **שער דולר:** ₪3.086
 
-## 🚀 Performance Summary
-- **Current Value:** `₪176,308`
-- **Total Return:** `+35.70%`
-- **USD/ILS Rate:** `₪3.086`
+## 💰 סיכום ביצועים כולל
+- **שווי תיק:** `₪176,333`
+- **תשואה מצטברת:** `+35.70%`
+- **מקס' ירידה מהשיא (Drawdown):** `-24.97%`
+- **מניית הכוכב 🚀:** ASML (+88.8%)
+- **המאכזבת 📉:** VOO (+13.2%)
 
-## 📊 Growth Chart
-![Growth](./data_hub/performance.png)
+## 📈 גרף ביצועים (מול S&P 500)
+![Performance](./data_hub/portfolio_performance.png)
 
-## 🥧 Asset Allocation
-![Allocation](./data_hub/allocation.png)
+## 🥧 התפלגות נכסים
+![Allocation](./data_hub/asset_allocation.png)
+
+## 📊 פירוט אחזקות
+| מניה | כמות | שווי (₪) | משקל בתיק |
+| :--- | :--- | :--- | :--- |
+| VOO | 24 | ₪46,433 | 26.3% |
+| TSLA | 20 | ₪25,765 | 14.6% |
+| NVDA | 57 | ₪32,156 | 18.2% |
+| XOM | 8 | ₪3,664 | 2.1% |
+| GOOGL | 54 | ₪50,950 | 28.9% |
+| ASML | 4 | ₪17,364 | 9.8% |
 
 ---
-*All data and archives are stored in the `data_hub` folder.*
+📂 *כל הנתונים והארכיון שמורים בתיקיית `data_hub`*
