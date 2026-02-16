@@ -9,70 +9,62 @@ PORTFOLIO_FILE = "portfolio.json"
 HISTORY_FILE = "stock_history.json"
 TZ = pytz.timezone('Israel')
 
-def load_json(filename):
-    if os.path.exists(filename):
-        with open(filename, 'r', encoding='utf-8') as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return []
-    return []
+def ensure_files_exist():
+    """יוצר קבצי בסיס אם הם חסרים במאגר"""
+    if not os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
+            json.dump([], f)
+    
+    if not os.path.exists(PORTFOLIO_FILE):
+        with open(PORTFOLIO_FILE, 'w', encoding='utf-8') as f:
+            # ברירת מחדל אם הקובץ נמחק
+            json.dump({"SPY": 1}, f)
 
 def main():
-    # 1. טעינת אחזקות
-    if not os.path.exists(PORTFOLIO_FILE):
-        print(f"❌ שגיאה: הקובץ {PORTFOLIO_FILE} לא נמצא")
-        return
+    ensure_files_exist()
     
     with open(PORTFOLIO_FILE, 'r') as f:
         holdings = json.load(f)
     
-    # נוסיף את המדד SPY כברירת מחדל כדי שנוכל להשוות ביצועים בקוד השני
     tickers = list(holdings.keys())
+    # תמיד נוסיף את SPY לצורך השוואת מדד בדוח
     if "SPY" not in tickers:
         tickers.append("SPY")
 
-    history = load_json(HISTORY_FILE)
+    with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
+        try:
+            history = json.load(f)
+        except:
+            history = []
 
-    # 2. השלמת נתונים היסטוריים (אם הקובץ ריק)
+    # השלמת נתונים שנה אחורה אם ההיסטוריה ריקה
     if not history:
-        print("⏳ מבצע השלמת נתונים שנה אחורה (פעם ראשונה בלבד)...")
-        # הורדת נתונים מרוכזת
+        print("Initial backfill starts...")
         data = yf.download(tickers, period="1y", interval="1d", progress=False)['Close']
-        
-        # ניקוי ערכים חסרים והמרה למילון מהיר
-        data = data.ffill().bfill() # מילוי חורים בנתונים
+        data = data.ffill().bfill()
         for date, row in data.iterrows():
             history.append({
                 "timestamp": date.strftime("%Y-%m-%d %H:%M:%S"),
                 "prices": row.round(2).to_dict()
             })
 
-    # 3. דגימה נוכחית
-    print(f"🔄 דוגם מחירים עבור: {', '.join(tickers)}")
+    # דגימה נוכחית (מחיר אחרון)
     try:
-        # הורדת נתוני היום האחרון
         current_data = yf.download(tickers, period="1d", interval="1m", progress=False)['Close']
-        
         if not current_data.empty:
             last_row = current_data.iloc[-1]
             new_timestamp = datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S")
             
-            # בדיקה למניעת כפילויות (לפי דקה)
-            last_ts = history[-1]['timestamp'] if history else ""
-            if new_timestamp[:16] != last_ts[:16]: # השוואה עד רמת הדקה
+            # מניעת כפילויות לפי דקה
+            if not history or history[-1]['timestamp'][:16] != new_timestamp[:16]:
                 history.append({
                     "timestamp": new_timestamp,
                     "prices": last_row.round(2).to_dict()
                 })
-                print(f"✅ נתונים נוספו בהצלחה ({new_timestamp})")
-            else:
-                print("⏭️ דגימה כבר קיימת לדקה זו, מדלג...")
-    
     except Exception as e:
-        print(f"⚠️ שגיאה באיסוף נתונים: {e}")
+        print(f"Sampling error: {e}")
 
-    # 4. שמירה (מוגבל ל-5000 כניסות כדי לשמור על קובץ קטן ומהיר)
+    # שמירה (מוגבל ל-5000 שורות כדי שהקובץ לא יהיה כבד מדי)
     with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
         json.dump(history[-5000:], f, indent=4)
 
