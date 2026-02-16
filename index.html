@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard תיק השקעות</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Assistant', sans-serif; background-color: #f4f7f9; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1000px; margin: auto; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .stat-card h3 { margin: 0; font-size: 0.9em; color: #777; }
+        .stat-card p { margin: 10px 0 0; font-size: 1.5em; font-weight: bold; color: #2c3e50; }
+        .chart-container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        th, td { padding: 15px; text-align: right; border-bottom: 1px solid #eee; }
+        th { background-color: #f8f9fa; color: #555; }
+        .positive { color: #27ae60; }
+        .negative { color: #e74c3c; }
+        #lastUpdate { font-size: 0.8em; color: #888; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div>
+            <h1>Dashboard ביצועי תיק</h1>
+            <div id="lastUpdate">טוען נתונים...</div>
+        </div>
+        <div id="usdRate" style="font-weight: bold; color: #2980b9;"></div>
+    </header>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>שווי תיק (₪)</h3>
+            <p id="totalValue">₪0</p>
+        </div>
+        <div class="stat-card">
+            <h3>תשואה כוללת</h3>
+            <p id="totalReturn">0%</p>
+        </div>
+        <div class="stat-card">
+            <h3>מניה מובילה</h3>
+            <p id="topStock">-</p>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="performanceChart"></canvas>
+    </div>
+
+    <table id="holdingsTable">
+        <thead>
+            <tr>
+                <th>סימול</th>
+                <th>כמות</th>
+                <th>מחיר (USD)</th>
+                <th>משקל</th>
+            </tr>
+        </thead>
+        <tbody>
+            </tbody>
+    </table>
+</div>
+
+<script>
+    async function loadDashboard() {
+        try {
+            const historyRes = await fetch('data_hub/stock_history.json');
+            const history = await historyRes.json();
+            const portfolioRes = await fetch('data_hub/portfolio.json');
+            const holdings = await portfolioRes.json();
+
+            const lastEntry = history[history.length - 1];
+            const firstEntry = history[0];
+            
+            // עדכון זמן עדכון אחרון
+            document.getElementById('lastUpdate').innerText = `עדכון אחרון: ${lastEntry.timestamp}`;
+
+            // חישוב שווי
+            let totalUSD = 0;
+            let initialUSD = 0;
+            const tickers = Object.keys(holdings);
+            
+            tickers.forEach(t => {
+                totalUSD += lastEntry.prices[t] * holdings[t];
+                initialUSD += firstEntry.prices[t] * holdings[t];
+            });
+
+            const returnPct = ((totalUSD / initialUSD) - 1) * 100;
+            document.getElementById('totalValue').innerText = `₪${(totalUSD * 3.65).toLocaleString()}`; // שער דולר משוער לצורך תצוגה
+            document.getElementById('totalReturn').innerText = `${returnPct.toFixed(2)}%`;
+            document.getElementById('totalReturn').className = returnPct >= 0 ? 'positive' : 'negative';
+
+            // טבלת אחזקות
+            const tbody = document.querySelector('#holdingsTable tbody');
+            tickers.forEach(t => {
+                const row = `<tr>
+                    <td>${t}</td>
+                    <td>${holdings[t]}</td>
+                    <td>$${lastEntry.prices[t]}</td>
+                    <td>${((lastEntry.prices[t]*holdings[t]/totalUSD)*100).toFixed(1)}%</td>
+                </tr>`;
+                tbody.innerHTML += row;
+            });
+
+            // גרף ביצועים
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: history.map(h => h.timestamp.split(' ')[0]),
+                    datasets: [{
+                        label: 'שווי תיק ב-$',
+                        data: history.map(h => {
+                            return tickers.reduce((sum, t) => sum + (h.prices[t] * holdings[t]), 0);
+                        }),
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: false } }
+                }
+            });
+
+        } catch (e) {
+            console.error("Error loading data:", e);
+            document.getElementById('lastUpdate').innerText = "שגיאה בטעינת נתונים";
+        }
+    }
+
+    loadDashboard();
+</script>
+
+</body>
+</html>
