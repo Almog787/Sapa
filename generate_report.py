@@ -152,7 +152,8 @@ def main():
             output.append(f"| {t} | {holdings[t]} | ₪{val_ils:,.0f} | {weight:.1f}% |")
 
     output.append(f"\n---")
-    output.append(f"📂 *כל הנתונים והארכיון שמורים בתיקיית כתובת האתר לתצוגה:https://almog787.github.io/Sapa/`{DATA_DIR}`*")
+    output.append(f"📂 *כל הנתונים והארכיון שמורים בתיקיית כתובת האתר לתצוגה:`{DATA_DIR}`*")
+    output.append("https://almog787.github.io/Sapa/")
 
     with open(README_FILE, 'w', encoding='utf-8') as f:
         f.write("\n".join(output))
