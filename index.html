@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>מערכת ניתוח תיק השקעות אישית</title>
+    <title>מערכת ניתוח תיק השקעות - שקלים</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --accent: #3b82f6; }
@@ -16,6 +16,7 @@
         th, td { padding: 12px; text-align: right; border-bottom: 1px solid #334155; }
         th { background: #334155; }
         .pos { color: #10b981; } .neg { color: #f43f5e; }
+        .usd-info { font-size: 0.8rem; color: #64748b; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -24,11 +25,12 @@
 
     <div class="grid">
         <div class="card">
-            <div class="label">שווי תיק נוכחי (USD)</div>
-            <div id="totalVal" class="val">$0</div>
+            <div class="label">שווי תיק נוכחי (ILS)</div>
+            <div id="totalVal" class="val">₪0</div>
+            <div id="usdExchangeInfo" class="usd-info">טוען שער חליפין...</div>
         </div>
         <div class="card">
-            <div class="label">תשואה מצטברת</div>
+            <div class="label">תשואה מצטברת (דולרי)</div>
             <div id="totalRet" class="val">0%</div>
         </div>
         <div class="card">
@@ -50,8 +52,8 @@
             <tr>
                 <th>נכס</th>
                 <th>כמות</th>
-                <th>מחיר</th>
-                <th>שווי פוזיציה</th>
+                <th>מחיר ($)</th>
+                <th>שווי (₪)</th>
                 <th>משקל</th>
             </tr>
         </thead>
@@ -59,9 +61,23 @@
     </table>
 
 <script>
+    // פונקציה למשיכת שער דולר עדכני
+    async function getUsdRate() {
+        try {
+            const res = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/ILS=X');
+            const data = await res.json();
+            return data.chart.result[0].meta.regularMarketPrice;
+        } catch (e) {
+            console.error("נכשל במשיכת שער דולר, משתמש בברירת מחדל");
+            return 3.65; // שער גיבוי
+        }
+    }
+
     async function fetchData() {
         try {
-            // משיכת הנתונים מהקבצים שלך בלבד
+            const usdRate = await getUsdRate();
+            document.getElementById('usdExchangeInfo').innerText = `שער דולר נוכחי: ₪${usdRate.toFixed(3)}`;
+
             const [history, portfolio] = await Promise.all([
                 fetch('data_hub/stock_history.json').then(r => r.json()),
                 fetch('data_hub/portfolio.json').then(r => r.json())
@@ -71,26 +87,26 @@
             const last = history[history.length - 1];
             const first = history[0];
 
-            // פונקציית עזר לחישוב שווי תיק בנקודת זמן
-            const calcValue = (data) => tickers.reduce((sum, t) => sum + (data.prices[t] * portfolio[t] || 0), 0);
+            const calcValueUSD = (data) => tickers.reduce((sum, t) => sum + (data.prices[t] * portfolio[t] || 0), 0);
 
-            // 1. שווי ותשואה
-            const currentVal = calcValue(last);
-            const initialVal = calcValue(first);
-            const totalReturn = ((currentVal / initialVal) - 1) * 100;
+            // 1. שווי בשקלים ותשואה
+            const currentValUSD = calcValueUSD(last);
+            const initialValUSD = calcValueUSD(first);
+            const currentValILS = currentValUSD * usdRate;
+            const totalReturn = ((currentValUSD / initialValUSD) - 1) * 100;
 
             document.getElementById('mainTitle').innerText = `ניתוח תיק - ${last.timestamp}`;
-            document.getElementById('totalVal').innerText = `$${currentVal.toLocaleString()}`;
+            document.getElementById('totalVal').innerText = `₪${currentValILS.toLocaleString(undefined, {maximumFractionDigits: 0})}`;
             document.getElementById('totalRet').innerText = `${totalReturn.toFixed(2)}%`;
             document.getElementById('totalRet').classList.add(totalReturn >= 0 ? 'pos' : 'neg');
 
-            // 2. חישוב Max Drawdown (זהה לניתוח ב-README)
-            let peak = 0;
+            // 2. חישוב Max Drawdown (מבוסס שווי דולרי למניעת רעש של שער חליפין)
+            let peakUSD = 0;
             let mdd = 0;
             history.forEach(h => {
-                const v = calcValue(h);
-                if (v > peak) peak = v;
-                const dd = (v / peak) - 1;
+                const v = calcValueUSD(h);
+                if (v > peakUSD) peakUSD = v;
+                const dd = (v / peakUSD) - 1;
                 if (dd < mdd) mdd = dd;
             });
             document.getElementById('maxDD').innerText = `${(mdd * 100).toFixed(2)}%`;
@@ -104,25 +120,27 @@
             });
             document.getElementById('bestStock').innerText = `${bestStock} (+${bestPerf.toFixed(1)}%)`;
 
-            // 4. בניית הטבלה
-            document.getElementById('tableBody').innerHTML = tickers.map(t => `
+            // 4. בניית הטבלה בשקלים
+            document.getElementById('tableBody').innerHTML = tickers.map(t => {
+                const posValueILS = last.prices[t] * portfolio[t] * usdRate;
+                return `
                 <tr>
                     <td><b>${t}</b></td>
                     <td>${portfolio[t]}</td>
-                    <td>$${last.prices[t]}</td>
-                    <td>$${(last.prices[t] * portfolio[t]).toLocaleString()}</td>
-                    <td>${((last.prices[t] * portfolio[t] / currentVal) * 100).toFixed(1)}%</td>
-                </tr>
-            `).join('');
+                    <td>$${last.prices[t].toLocaleString()}</td>
+                    <td>₪${posValueILS.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                    <td>${((last.prices[t] * portfolio[t] / currentValUSD) * 100).toFixed(1)}%</td>
+                </tr>`;
+            }).join('');
 
-            // 5. גרף ביצועים מנורמל (100)
+            // 5. גרף ביצועים מנורמל
             new Chart(document.getElementById('mainChart'), {
                 type: 'line',
                 data: {
                     labels: history.map(h => h.timestamp.split(' ')[0]),
                     datasets: [{
                         label: 'ביצועי התיק (%)',
-                        data: history.map(h => (calcValue(h) / initialVal * 100).toFixed(2)),
+                        data: history.map(h => (calcValueUSD(h) / initialValUSD * 100).toFixed(2)),
                         borderColor: '#3b82f6',
                         backgroundColor: 'rgba(59, 130, 246, 0.1)',
                         fill: true,
@@ -138,6 +156,7 @@
 
         } catch (err) {
             document.getElementById('mainTitle').innerText = "שגיאה בטעינת הנתונים מה-Data Hub";
+            console.error(err);
         }
     }
     fetchData();
