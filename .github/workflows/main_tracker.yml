@@ -1,18 +1,18 @@
-name: Stock System
+name: Financial Tracker System
 
 on:
   schedule:
-    - cron: '0 14-22 * * 1-5'
-  workflow_dispatch:
+    - cron: '0 14-22 * * 1-5' # Runs every hour during market hours
+  workflow_dispatch: # Allows manual run
 
 permissions:
   contents: write
 
 jobs:
-  run-system:
+  update:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -23,15 +23,14 @@ jobs:
       - name: Install Dependencies
         run: pip install pandas yfinance pytz matplotlib
 
-      - name: Fetch Data
+      - name: Execute Tracker
         run: python stock_tracker.py
 
-      - name: Generate Report
+      - name: Execute Reporter
         run: python generate_report.py
 
-      - name: Commit and Push
+      - name: Commit Data Hub Changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "System sync: data_hub updated"
-          # עוקב אחרי כל התיקייה החדשה כולל הכל
+          commit_message: "Automated Data Update [skip ci]"
           file_pattern: 'data_hub/ README.md'
