@@ -46,17 +46,15 @@ def get_live_usd_ils():
         return 3.65
 
 def generate_visuals(df, holdings):
-    """Generate advanced visuals: Performance vs Benchmark and Asset Allocation."""
+    """Generate performance and allocation charts."""
     plt.switch_backend('Agg')
     
-    # 1. Performance vs S&P 500
+    # 1. Performance Graph
     plt.figure(figsize=(12, 6))
-    # Normalize to 100 (percentage return from start)
     portfolio_norm = (df['total_usd'] / df['total_usd'].iloc[0]) * 100
     plt.plot(df['ts'], portfolio_norm, label='My Portfolio', color='#1f77b4', linewidth=2.5)
     
     try:
-        # Fetch benchmark data for comparison
         spy = yf.Ticker("^GSPC").history(start=df['ts'].min(), end=df['ts'].max() + timedelta(days=1))
         if not spy.empty:
             spy_norm = (spy['Close'] / spy['Close'].iloc[0]) * 100
@@ -65,28 +63,24 @@ def generate_visuals(df, holdings):
         logging.error(f"Benchmark error: {e}")
 
     plt.title('Performance vs Benchmark (Normalized to 100)', fontsize=14)
-    plt.ylabel('Value')
     plt.grid(True, alpha=0.2)
     plt.legend()
     plt.savefig(CHART_FILE)
     plt.close()
 
-    # 2. Pie Chart - Asset Allocation
+    # 2. Asset Allocation
     plt.figure(figsize=(8, 8))
     last_row = df.iloc[-1]
     tickers = list(holdings.keys())
     values = [last_row[t] * holdings[t] for t in tickers if t in last_row]
     labels = [t for t in tickers if t in last_row]
-    
     plt.pie(values, labels=labels, autopct='%1.1f%%', startangle=140, colors=plt.cm.Pastel1.colors)
     plt.title('Asset Allocation (USD Weight)')
     plt.savefig(PIE_FILE)
     plt.close()
 
 def main():
-    # Resilience: Check if required files exist
     if not os.path.exists(HISTORY_FILE) or not os.path.exists(PORTFOLIO_FILE):
-        logging.error("Required data files missing.")
         return
 
     archive_visuals()
@@ -98,65 +92,76 @@ def main():
         logging.error(f"JSON Load error: {e}")
         return
 
-    if not history: 
-        logging.error("History file is empty.")
-        return
+    if not history: return
 
     usd_to_ils = get_live_usd_ils()
     tickers = list(holdings.keys())
     
-    # Data processing
+    # Process History Data
     df = pd.DataFrame([{"ts": e['timestamp'], **e['prices']} for e in history])
     df['ts'] = pd.to_datetime(df['ts']).dt.tz_localize(None)
     df = df.sort_values('ts')
     
-    # Calculate portfolio value in USD for each point in time
+    # Portfolio Value Calculation
     df['total_usd'] = df.apply(lambda r: sum(r[t] * holdings[t] for t in tickers if t in r and pd.notnull(r[t])), axis=1)
     
-    # Overall performance metrics
     current_val_usd = df['total_usd'].iloc[-1]
     initial_val_usd = df['total_usd'].iloc[0]
     total_ret = ((current_val_usd / initial_val_usd) - 1) * 100
+
+    # --- Change Calculations ---
     
-    # Daily Change Calculation (Last vs Previous entry)
-    daily_change_pct = 0.0
-    daily_change_ils = 0.0
+    # 1. Daily Change (Last vs Previous)
+    daily_change_pct, daily_change_ils = 0.0, 0.0
     if len(df) >= 2:
         prev_val_usd = df['total_usd'].iloc[-2]
         daily_change_pct = ((current_val_usd / prev_val_usd) - 1) * 100
         daily_change_ils = (current_val_usd - prev_val_usd) * usd_to_ils
 
-    # Max Drawdown calculation
-    rolling_max = df['total_usd'].cummax()
-    drawdown = (df['total_usd'] / rolling_max) - 1
-    max_drawdown = drawdown.min() * 100
+    # 2. Weekly Change (Last vs ~7 days ago)
+    weekly_change_pct, weekly_change_ils = 0.0, 0.0
+    one_week_ago = df['ts'].max() - timedelta(days=7)
+    past_week_df = df[df['ts'] <= one_week_ago]
+    
+    if not past_week_df.empty:
+        weekly_val_usd = past_week_df.iloc[-1]['total_usd']
+    else:
+        # Fallback to earliest record if less than a week of data
+        weekly_val_usd = df['total_usd'].iloc[0]
+        
+    weekly_change_pct = ((current_val_usd / weekly_val_usd) - 1) * 100
+    weekly_change_ils = (current_val_usd - weekly_val_usd) * usd_to_ils
 
-    # Identify winners and losers (Lifetime)
-    start_prices = df.iloc[0]
-    last_prices = df.iloc[-1]
+    # Risk Metrics
+    rolling_max = df['total_usd'].cummax()
+    max_drawdown = ((df['total_usd'] / rolling_max) - 1).min() * 100
+
+    # Stock Performance (Lifetime)
+    start_prices, last_prices = df.iloc[0], df.iloc[-1]
     perf_map = {t: ((last_prices[t]/start_prices[t])-1)*100 for t in tickers if t in start_prices and t in last_prices}
     best_stock = max(perf_map, key=perf_map.get) if perf_map else "N/A"
     worst_stock = min(perf_map, key=perf_map.get) if perf_map else "N/A"
 
     generate_visuals(df, holdings)
 
-    # --- Build README Content ---
+    # --- Build README ---
     output = [
         f"# 📊 Portfolio Dashboard",
         f"**עודכן ב:** {datetime.now(TZ).strftime('%d/%m/%Y %H:%M')} | **שער דולר:** ₪{usd_to_ils:.3f}\n",
-        f"## 💰 סיכום ביצועים כולל",
+        f"## 💰 סיכום ביצועים",
         f"- **שווי תיק:** `₪{current_val_usd * usd_to_ils:,.0f}`",
         f"- **שינוי יומי:** `{daily_change_pct:+.2f}%` (₪{daily_change_ils:,.0f})",
+        f"- **שינוי שבועי:** `{weekly_change_pct:+.2f}%` (₪{weekly_change_ils:,.0f})",
         f"- **תשואה מצטברת:** `{total_ret:+.2f}%`",
-        f"- **מקס' ירידה מהשיא (Drawdown):** `{max_drawdown:.2f}%`",
+        f"- **מקס' ירידה (Drawdown):** `{max_drawdown:.2f}%`",
         f"- **מניית הכוכב 🚀:** {best_stock} ({perf_map.get(best_stock, 0):+.1f}%)",
         f"- **המאכזבת 📉:** {worst_stock} ({perf_map.get(worst_stock, 0):+.1f}%)\n",
-        f"## 📈 גרף ביצועים (מול S&P 500)",
+        f"## 📈 גרף ביצועים",
         f"![Performance](./{CHART_FILE})\n",
         f"## 🥧 התפלגות נכסים",
         f"![Allocation](./{PIE_FILE})\n",
         f"## 📊 פירוט אחזקות",
-        f"| מניה | כמות | שווי (₪) | משקל בתיק |",
+        f"| מניה | כמות | שווי (₪) | משקל |",
         f"| :--- | :--- | :--- | :--- |"
     ]
 
@@ -167,8 +172,7 @@ def main():
             output.append(f"| {t} | {holdings[t]} | ₪{val_ils:,.0f} | {weight:.1f}% |")
 
     output.append(f"\n---")
-    output.append(f"📂 *כל הנתונים והארכיון שמורים בתיקיית הנתונים: `{DATA_DIR}`*")
-    output.append("https://almog787.github.io/Sapa/")
+    output.append(f"📂 *Data stored in `{DATA_DIR}`* | [Live Site](https://almog787.github.io/Sapa/)")
 
     with open(README_FILE, 'w', encoding='utf-8') as f:
         f.write("\n".join(output))
