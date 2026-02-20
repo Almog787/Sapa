@@ -74,6 +74,7 @@ def generate_visuals(df, holdings):
     plt.figure(figsize=(8, 8))
     last_row = df.iloc
     tickers = list(holdings.keys())
+    
     # נוודא שהמחיר לא ריק לפני שאנחנו מציירים בגרף
     values = * holdings for t in tickers if t in last_row and pd.notnull(last_row)]
     labels =)]
