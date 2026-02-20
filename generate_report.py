@@ -1,3 +1,5 @@
+
+
 import json
 import pandas as pd
 import yfinance as yf
@@ -63,7 +65,7 @@ def generate_visuals(df, holdings):
     except Exception as e:
         logging.error(f"Benchmark error: {e}")
 
-    plt.title('Portfolio Performance (Lifetime)', fontsize=14)
+    plt.title('Performance vs Benchmark (Normalized to 100)', fontsize=14)
     plt.grid(True, alpha=0.2)
     plt.legend()
     plt.savefig(CHART_FILE)
@@ -100,45 +102,41 @@ def main():
     usd_to_ils = get_live_usd_ils()
     tickers = list(holdings.keys())
     
-    # טעינת כל ההיסטוריה ללא סינון
     df = pd.DataFrame([{"ts": e['timestamp'], **e['prices']} for e in history])
     df['ts'] = pd.to_datetime(df['ts']).dt.tz_localize(None)
     df = df.sort_values('ts')
     
-    # מילוי חוסרים בנתונים (ffill) למקרה של נפילת API
     price_cols = [t for t in tickers if t in df.columns]
     df[price_cols] = df[price_cols].ffill()
     
-    # חישוב שווי תיק
     df['total_usd'] = df.apply(lambda r: sum(r[t] * holdings[t] for t in tickers if t in r and pd.notnull(r[t])), axis=1)
     
     current_val_usd = df['total_usd'].iloc[-1]
     initial_val_usd = df['total_usd'].iloc[0]
     
+    # Cumulative Return
     total_ret_pct = ((current_val_usd / initial_val_usd) - 1) * 100
     total_ret_ils = (current_val_usd - initial_val_usd) * usd_to_ils
 
-    # חישוב שינוי יומי
+    # Change Calculations
     one_day_ago = df['ts'].max() - timedelta(days=1)
     past_day_df = df[df['ts'] <= one_day_ago]
     prev_val_usd = past_day_df['total_usd'].iloc[-1] if not past_day_df.empty else df['total_usd'].iloc[0]
     daily_change_pct = ((current_val_usd / prev_val_usd) - 1) * 100
     daily_change_ils = (current_val_usd - prev_val_usd) * usd_to_ils
 
-    # מדדי סיכון
+    # Risk Metrics
     rolling_max = df['total_usd'].cummax()
     max_drawdown = ((df['total_usd'] / rolling_max) - 1).min() * 100
 
-    # ביצועי מניות
+    # Performance Mapping
     perf_map = {}
     for t in tickers:
         if t in df.columns:
             valid_prices = df[t].dropna() 
             if len(valid_prices) >= 2:
                 perf_map[t] = ((valid_prices.iloc[-1] / valid_prices.iloc[0]) - 1) * 100
-                
     best_stock = max(perf_map, key=perf_map.get) if perf_map else "N/A"
-    worst_stock = min(perf_map, key=perf_map.get) if perf_map else "N/A"
 
     generate_visuals(df, holdings)
 
@@ -148,6 +146,7 @@ def main():
     output = [
         f"![Python](https://img.shields.io/badge/python-3.8%2B-blue?logo=python)",
         f"![License](https://img.shields.io/badge/license-MIT-green)",
+        f"![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-orange)\n",
         f"# 📊 Portfolio Dashboard | מעקב תיק השקעות",
         f"**Last Update / עדכון אחרון:** {update_time} | **USD/ILS:** ₪{usd_to_ils:.3f}\n",
         
@@ -159,14 +158,16 @@ def main():
         f"| **Total Return** | `{total_ret_pct:+.2f}%` (₪{total_ret_ils:,.0f}) | **תשואה מצטברת** |",
         f"| **Max Drawdown** | `{max_drawdown:.2f}%` | **ירידה מקסימלית** |",
         f"| **Best Stock 🚀** | {best_stock} | **המניה המנצחת** |",
-        f"| **Worst Stock 📉** | {worst_stock} | **המניה המאכזבת** |",
         
         f"\n## 📈 Charts | גרפים",
         f"![Performance](./{CHART_FILE})",
         f"![Allocation](./{PIE_FILE})\n",
         
         f"## ⚙️ How to Update? | הוראות עדכון",
-        f"1. פתחו את הקובץ `data_hub/portfolio.json`.\n2. עדכנו מניות/כמויות ולחצו על **Commit changes**.\n",
+        f"### 🇺🇸 English",
+        f"1. Open `data_hub/portfolio.json`.\n2. Click the **Edit** icon.\n3. Modify symbols/amounts and **Commit changes**.\n",
+        f"### 🇮🇱 עברית",
+        f"1. פתחו את הקובץ `data_hub/portfolio.json`.\n2. לחצו על אייקון ה**עריכה**.\n3. עדכנו מניות/כמויות ולחצו על **Commit changes**.\n",
         
         f"---",
         f"📂 *Created by [Almog787](https://github.com/Almog787)* | [Live Site](https://almog787.github.io/Sapa/)"
