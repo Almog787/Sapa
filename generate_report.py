@@ -30,7 +30,6 @@ logging.basicConfig(filename=LOG_FILE, level=logging.ERROR,
 def archive_visuals():
     """Archive old visuals before creating new ones."""
     ts = datetime.now(TZ).strftime("%Y%m%d_%H%M")
-    # Fixed the missing loop target
     for f in [CHART_FILE, PIE_FILE]:
         if os.path.exists(f):
             name = os.path.basename(f)
@@ -41,24 +40,21 @@ def get_live_usd_ils():
     try:
         ticker = yf.Ticker("ILS=X")
         data = ticker.history(period="1d")
-        # Fixed iloc syntax
         return data['Close'].iloc[-1] if not data.empty else 3.65
     except Exception as e:
         logging.error(f"Exchange rate error: {e}")
         return 3.65
 
 def generate_visuals(df, holdings):
-    """Generate performance and allocation charts using provided logic."""
+    """Generate performance and allocation charts."""
     plt.switch_backend('Agg')
     
     # 1. Performance Graph
     plt.figure(figsize=(12, 6))
-    # Using your normalization logic (df / df.iloc[0])
     portfolio_norm = (df['total_usd'] / df['total_usd'].iloc[0]) * 100
     plt.plot(df['ts'], portfolio_norm, label='My Portfolio', color='#1f77b4', linewidth=2.5)
     
     try:
-        # Fixed df.min/max syntax to point to the timestamp column
         spy = yf.Ticker("^GSPC").history(start=df['ts'].min(), end=df['ts'].max() + timedelta(days=1))
         if not spy.empty:
             spy.index = spy.index.tz_localize(None) 
@@ -78,7 +74,6 @@ def generate_visuals(df, holdings):
     last_row = df.iloc[-1]
     tickers = list(holdings.keys())
     
-    # Fixed the broken list comprehension and variables
     values = [last_row[t] * holdings[t] for t in tickers if t in last_row and pd.notnull(last_row[t])]
     labels = [t for t in tickers if t in last_row and pd.notnull(last_row[t])]
     
@@ -106,47 +101,30 @@ def main():
     usd_to_ils = get_live_usd_ils()
     tickers = list(holdings.keys())
     
-    # Process History Data (Preserving your logic for structure)
     df = pd.DataFrame([{"ts": e['timestamp'], **e['prices']} for e in history])
     df['ts'] = pd.to_datetime(df['ts']).dt.tz_localize(None)
     df = df.sort_values('ts')
     
-    # Logic: ffill to prevent drops on API failure
     price_cols = [t for t in tickers if t in df.columns]
     df[price_cols] = df[price_cols].ffill()
     
-    # Portfolio Value Calculation - Preserving your sum(r * holdings) logic
     df['total_usd'] = df.apply(lambda r: sum(r[t] * holdings[t] for t in tickers if t in r and pd.notnull(r[t])), axis=1)
     
     current_val_usd = df['total_usd'].iloc[-1]
     initial_val_usd = df['total_usd'].iloc[0]
     total_ret = ((current_val_usd / initial_val_usd) - 1) * 100
 
-    # --- Change Calculations using your specific time filters ---
-    
-    # 1. Daily Change
-    daily_change_pct, daily_change_ils = 0.0, 0.0
+    # Daily Change
     one_day_ago = df['ts'].max() - timedelta(days=1)
     past_day_df = df[df['ts'] <= one_day_ago]
-    
-    if not past_day_df.empty:
-        prev_val_usd = past_day_df['total_usd'].iloc[-1]
-    else:
-        prev_val_usd = df['total_usd'].iloc[0]
-        
+    prev_val_usd = past_day_df['total_usd'].iloc[-1] if not past_day_df.empty else df['total_usd'].iloc[0]
     daily_change_pct = ((current_val_usd / prev_val_usd) - 1) * 100
     daily_change_ils = (current_val_usd - prev_val_usd) * usd_to_ils
 
-    # 2. Weekly Change
-    weekly_change_pct, weekly_change_ils = 0.0, 0.0
+    # Weekly Change
     one_week_ago = df['ts'].max() - timedelta(days=7)
     past_week_df = df[df['ts'] <= one_week_ago]
-    
-    if not past_week_df.empty:
-        weekly_val_usd = past_week_df['total_usd'].iloc[-1]
-    else:
-        weekly_val_usd = df['total_usd'].iloc[0]
-        
+    weekly_val_usd = past_week_df['total_usd'].iloc[-1] if not past_week_df.empty else df['total_usd'].iloc[0]
     weekly_change_pct = ((current_val_usd / weekly_val_usd) - 1) * 100
     weekly_change_ils = (current_val_usd - weekly_val_usd) * usd_to_ils
 
@@ -154,7 +132,7 @@ def main():
     rolling_max = df['total_usd'].cummax()
     max_drawdown = ((df['total_usd'] / rolling_max) - 1).min() * 100
 
-    # Stock Performance (Lifetime) using your specific filtering logic
+    # Stock Performance
     perf_map = {}
     for t in tickers:
         if t in df.columns:
@@ -195,8 +173,17 @@ def main():
             weight = (last_prices[t] * holdings[t] / current_val_usd) * 100
             output.append(f"| {t} | {holdings[t]} | ₪{val_ils:,.0f} | {weight:.1f}% |")
 
+    # --- הוספת הוראות הפעלה בסוף ה-README ---
     output.append(f"\n---")
-    output.append(f"📂 *Data stored in `{DATA_DIR}`* | [Live Site](https://almog787.github.io/Sapa/)")
+    output.append(f"## ⚙️ ניהול התיק (הוספת/עריכת מניות)")
+    output.append(f"ניתן לעדכן את המניות בתיק ישירות מהדפדפן ב-GitHub:")
+    output.append(f"1. נווטו לתיקייה `data_hub` ופתחו את הקובץ `portfolio.json`.")
+    output.append(f"2. לחצו על אייקון העיפרון (**Edit this file**).")
+    output.append(f"3. הוסיפו מניה חדשה במבנה של `\"TICKER\": AMOUNT`. לדוגמה: `\"NVDA\": 10`.")
+    output.append(f"4. לחצו על **Commit changes...** בתחתית העמוד.")
+    output.append(f"> הסקריפט יתעדכן אוטומטית בהרצה הבאה.")
+    
+    output.append(f"\n📂 *Data stored in `{DATA_DIR}`* | [Live Site](https://almog787.github.io/Sapa/)")
 
     with open(README_FILE, 'w', encoding='utf-8') as f:
         f.write("\n".join(output))
