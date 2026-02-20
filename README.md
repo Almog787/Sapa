@@ -3,14 +3,14 @@
 ![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-orange)
 
 # 📊 Portfolio Dashboard | מעקב תיק השקעות
-**Last Update / עדכון אחרון:** 20/02/2026 13:26 | **USD/ILS:** ₪3.124
+**Last Update / עדכון אחרון:** 20/02/2026 13:32 | **USD/ILS:** ₪3.124
 
 ## 💰 Performance Summary | סיכום ביצועים
 | Metric | Value | נתון |
 | :--- | :--- | :--- |
-| **Portfolio Value** | `₪179,461` | **שווי תיק** |
-| **Daily Change** | `-0.14%` | **שינוי יומי** |
-| **Total Return** | `+36.46%` | **תשואה מצטברת** |
+| **Portfolio Value** | `₪179,467` | **שווי תיק** |
+| **Daily Change** | `-0.14%` (₪-256) | **שינוי יומי** |
+| **Total Return** | `+36.46%` (₪47,953) | **תשואה מצטברת** |
 | **Max Drawdown** | `-24.97%` | **ירידה מקסימלית** |
 | **Best Stock 🚀** | ASML | **המניה המנצחת** |
 
@@ -30,4 +30,4 @@
 3. עדכנו מניות/כמויות ולחצו על **Commit changes**.
 
 ---
-📂 *Created by [YourName](https://github.com/YourUsername)* | [Live Site](https://almog787.github.io/Sapa/)
+📂 *Created by [Almog787](https://github.com/Almog787)* | [Live Site](https://almog787.github.io/Sapa/)
