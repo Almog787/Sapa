@@ -120,17 +120,11 @@ def main():
     daily_change_pct = ((current_val_usd / prev_val_usd) - 1) * 100
     daily_change_ils = (current_val_usd - prev_val_usd) * usd_to_ils
 
-    one_week_ago = df['ts'].max() - timedelta(days=7)
-    past_week_df = df[df['ts'] <= one_week_ago]
-    weekly_val_usd = past_week_df['total_usd'].iloc[-1] if not past_week_df.empty else df['total_usd'].iloc[0]
-    weekly_change_pct = ((current_val_usd / weekly_val_usd) - 1) * 100
-    weekly_change_ils = (current_val_usd - weekly_val_usd) * usd_to_ils
-
     # Risk Metrics
     rolling_max = df['total_usd'].cummax()
     max_drawdown = ((df['total_usd'] / rolling_max) - 1).min() * 100
 
-    # Performance Leaderboard
+    # Performance Mapping
     perf_map = {}
     for t in tickers:
         if t in df.columns:
@@ -142,63 +136,38 @@ def main():
 
     generate_visuals(df, holdings)
 
-    # --- Build Bilingual README ---
+    # --- Build README ---
     update_time = datetime.now(TZ).strftime('%d/%m/%Y %H:%M')
     
     output = [
-        f"# 📊 Portfolio Tracking Dashboard | מעקב תיק השקעות",
+        f"![Python](https://img.shields.io/badge/python-3.8%2B-blue?logo=python)",
+        f"![License](https://img.shields.io/badge/license-MIT-green)",
+        f"![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-orange)\n",
+        f"# 📊 Portfolio Dashboard | מעקב תיק השקעות",
         f"**Last Update / עדכון אחרון:** {update_time} | **USD/ILS:** ₪{usd_to_ils:.3f}\n",
         
         f"## 💰 Performance Summary | סיכום ביצועים",
         f"| Metric | Value | נתון |",
         f"| :--- | :--- | :--- |",
         f"| **Portfolio Value** | `₪{current_val_usd * usd_to_ils:,.0f}` | **שווי תיק** |",
-        f"| **Daily Change** | `{daily_change_pct:+.2f}%` (₪{daily_change_ils:,.0f}) | **שינוי יומי** |",
-        f"| **Weekly Change** | `{weekly_change_pct:+.2f}%` (₪{weekly_change_ils:,.0f}) | **שינוי שבועי** |",
+        f"| **Daily Change** | `{daily_change_pct:+.2f}%` | **שינוי יומי** |",
         f"| **Total Return** | `{total_ret:+.2f}%` | **תשואה מצטברת** |",
         f"| **Max Drawdown** | `{max_drawdown:.2f}%` | **ירידה מקסימלית** |",
-        f"| **Best Performer 🚀** | {best_stock} ({perf_map.get(best_stock, 0):+.1f}%) | **המניה המנצחת** |",
-        f"| **Worst Performer 📉** | {worst_stock} ({perf_map.get(worst_stock, 0):+.1f}%) | **המניה המאכזבת** |\n",
+        f"| **Best Stock 🚀** | {best_stock} | **המניה המנצחת** |",
         
-        f"## 📈 Visuals | גרפים",
-        f"### Performance vs S&P 500",
-        f"![Performance](./{CHART_FILE})\n",
-        f"### Asset Allocation | התפלגות נכסים",
+        f"\n## 📈 Charts | גרפים",
+        f"![Performance](./{CHART_FILE})",
         f"![Allocation](./{PIE_FILE})\n",
         
-        f"## 📊 Holdings Detail | פירוט אחזקות",
-        f"| Ticker | Amount | Value (₪) | Weight |",
-        f"| :--- | :--- | :--- | :--- |"
+        f"## ⚙️ How to Update? | הוראות עדכון",
+        f"### 🇺🇸 English",
+        f"1. Open `data_hub/portfolio.json`.\n2. Click the **Edit** icon.\n3. Modify symbols/amounts and **Commit changes**.\n",
+        f"### 🇮🇱 עברית",
+        f"1. פתחו את הקובץ `data_hub/portfolio.json`.\n2. לחצו על אייקון ה**עריכה**.\n3. עדכנו מניות/כמויות ולחצו על **Commit changes**.\n",
+        
+        f"---",
+        f"📂 *Created by [YourName](https://github.com/YourUsername)* | [Live Site](https://almog787.github.io/Sapa/)"
     ]
-
-    last_prices = df.iloc[-1]
-    for t in tickers:
-        if t in last_prices and pd.notnull(last_prices[t]):
-            val_ils = last_prices[t] * holdings[t] * usd_to_ils
-            weight = (last_prices[t] * holdings[t] / current_val_usd) * 100
-            output.append(f"| {t} | {holdings[t]} | ₪{val_ils:,.0f} | {weight:.1f}% |")
-
-    # --- Instructions Section (Bilingual) ---
-    output.append(f"\n---")
-    output.append(f"## ⚙️ How to Update? | הוראות עדכון")
-    
-    # English Instructions
-    output.append(f"### 🇺🇸 English")
-    output.append(f"To update your portfolio without downloading any files:")
-    output.append(f"1. Go to the `data_hub` folder and open `portfolio.json`.")
-    output.append(f"2. Click the **pencil icon** (Edit this file).")
-    output.append(f"3. Add or modify stocks in the format: `\"TICKER\": AMOUNT`. (Example: `\"AAPL\": 10`).")
-    output.append(f"4. Click **Commit changes** at the bottom.")
-    
-    # Hebrew Instructions
-    output.append(f"### 🇮🇱 עברית")
-    output.append(f"כדי לעדכן את המניות בתיק ללא הורדת קבצים:")
-    output.append(f"1. היכנסו לתיקייה `data_hub` ופתחו את הקובץ `portfolio.json`.")
-    output.append(f"2. לחצו על אייקון העיפרון (**Edit this file**).")
-    output.append(f"3. הוסיפו או עדכנו מניות בפורמט: `\"סימול\": כמות`. (לדוגמה: `\"TSLA\": 5`).")
-    output.append(f"4. לחצו על **Commit changes** בתחתית העמוד.\n")
-
-    output.append(f"📂 *Data stored in `{DATA_DIR}`* | [Live Site](https://almog787.github.io/Sapa/)")
 
     with open(README_FILE, 'w', encoding='utf-8') as f:
         f.write("\n".join(output))
