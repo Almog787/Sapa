@@ -3,12 +3,12 @@
 ![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-orange)
 
 # 📊 Portfolio Dashboard | מעקב תיק השקעות
-**Last Update / עדכון אחרון:** 20/02/2026 12:10 | **USD/ILS:** ₪3.122
+**Last Update / עדכון אחרון:** 20/02/2026 13:26 | **USD/ILS:** ₪3.124
 
 ## 💰 Performance Summary | סיכום ביצועים
 | Metric | Value | נתון |
 | :--- | :--- | :--- |
-| **Portfolio Value** | `₪179,366` | **שווי תיק** |
+| **Portfolio Value** | `₪179,461` | **שווי תיק** |
 | **Daily Change** | `-0.14%` | **שינוי יומי** |
 | **Total Return** | `+36.46%` | **תשואה מצטברת** |
 | **Max Drawdown** | `-24.97%` | **ירידה מקסימלית** |
