@@ -73,7 +73,6 @@ def generate_visuals(df, holdings):
     plt.figure(figsize=(8, 8))
     last_row = df.iloc[-1]
     tickers = list(holdings.keys())
-    
     values = [last_row[t] * holdings[t] for t in tickers if t in last_row and pd.notnull(last_row[t])]
     labels = [t for t in tickers if t in last_row and pd.notnull(last_row[t])]
     
@@ -114,14 +113,13 @@ def main():
     initial_val_usd = df['total_usd'].iloc[0]
     total_ret = ((current_val_usd / initial_val_usd) - 1) * 100
 
-    # Daily Change
+    # Change Calculations
     one_day_ago = df['ts'].max() - timedelta(days=1)
     past_day_df = df[df['ts'] <= one_day_ago]
     prev_val_usd = past_day_df['total_usd'].iloc[-1] if not past_day_df.empty else df['total_usd'].iloc[0]
     daily_change_pct = ((current_val_usd / prev_val_usd) - 1) * 100
     daily_change_ils = (current_val_usd - prev_val_usd) * usd_to_ils
 
-    # Weekly Change
     one_week_ago = df['ts'].max() - timedelta(days=7)
     past_week_df = df[df['ts'] <= one_week_ago]
     weekly_val_usd = past_week_df['total_usd'].iloc[-1] if not past_week_df.empty else df['total_usd'].iloc[0]
@@ -132,37 +130,44 @@ def main():
     rolling_max = df['total_usd'].cummax()
     max_drawdown = ((df['total_usd'] / rolling_max) - 1).min() * 100
 
-    # Stock Performance
+    # Performance Leaderboard
     perf_map = {}
     for t in tickers:
         if t in df.columns:
             valid_prices = df[t].dropna() 
             if len(valid_prices) >= 2:
                 perf_map[t] = ((valid_prices.iloc[-1] / valid_prices.iloc[0]) - 1) * 100
-                
     best_stock = max(perf_map, key=perf_map.get) if perf_map else "N/A"
     worst_stock = min(perf_map, key=perf_map.get) if perf_map else "N/A"
 
     generate_visuals(df, holdings)
 
-    # --- Build README ---
+    # --- Build Bilingual README ---
+    update_time = datetime.now(TZ).strftime('%d/%m/%Y %H:%M')
+    
     output = [
-        f"# 📊 Portfolio Dashboard",
-        f"**עודכן ב:** {datetime.now(TZ).strftime('%d/%m/%Y %H:%M')} | **שער דולר:** ₪{usd_to_ils:.3f}\n",
-        f"## 💰 סיכום ביצועים",
-        f"- **שווי תיק:** `₪{current_val_usd * usd_to_ils:,.0f}`",
-        f"- **שינוי יומי:** `{daily_change_pct:+.2f}%` (₪{daily_change_ils:,.0f})",
-        f"- **שינוי שבועי:** `{weekly_change_pct:+.2f}%` (₪{weekly_change_ils:,.0f})",
-        f"- **תשואה מצטברת:** `{total_ret:+.2f}%`",
-        f"- **מקס' ירידה (Drawdown):** `{max_drawdown:.2f}%`",
-        f"- **מניית הכוכב 🚀:** {best_stock} ({perf_map.get(best_stock, 0):+.1f}%)",
-        f"- **המאכזבת 📉:** {worst_stock} ({perf_map.get(worst_stock, 0):+.1f}%)\n",
-        f"## 📈 גרף ביצועים (מול S&P 500)",
+        f"# 📊 Portfolio Tracking Dashboard | מעקב תיק השקעות",
+        f"**Last Update / עדכון אחרון:** {update_time} | **USD/ILS:** ₪{usd_to_ils:.3f}\n",
+        
+        f"## 💰 Performance Summary | סיכום ביצועים",
+        f"| Metric | Value | נתון |",
+        f"| :--- | :--- | :--- |",
+        f"| **Portfolio Value** | `₪{current_val_usd * usd_to_ils:,.0f}` | **שווי תיק** |",
+        f"| **Daily Change** | `{daily_change_pct:+.2f}%` (₪{daily_change_ils:,.0f}) | **שינוי יומי** |",
+        f"| **Weekly Change** | `{weekly_change_pct:+.2f}%` (₪{weekly_change_ils:,.0f}) | **שינוי שבועי** |",
+        f"| **Total Return** | `{total_ret:+.2f}%` | **תשואה מצטברת** |",
+        f"| **Max Drawdown** | `{max_drawdown:.2f}%` | **ירידה מקסימלית** |",
+        f"| **Best Performer 🚀** | {best_stock} ({perf_map.get(best_stock, 0):+.1f}%) | **המניה המנצחת** |",
+        f"| **Worst Performer 📉** | {worst_stock} ({perf_map.get(worst_stock, 0):+.1f}%) | **המניה המאכזבת** |\n",
+        
+        f"## 📈 Visuals | גרפים",
+        f"### Performance vs S&P 500",
         f"![Performance](./{CHART_FILE})\n",
-        f"## 🥧 התפלגות נכסים",
+        f"### Asset Allocation | התפלגות נכסים",
         f"![Allocation](./{PIE_FILE})\n",
-        f"## 📊 פירוט אחזקות",
-        f"| מניה | כמות | שווי (₪) | משקל |",
+        
+        f"## 📊 Holdings Detail | פירוט אחזקות",
+        f"| Ticker | Amount | Value (₪) | Weight |",
         f"| :--- | :--- | :--- | :--- |"
     ]
 
@@ -173,17 +178,27 @@ def main():
             weight = (last_prices[t] * holdings[t] / current_val_usd) * 100
             output.append(f"| {t} | {holdings[t]} | ₪{val_ils:,.0f} | {weight:.1f}% |")
 
-    # --- הוספת הוראות הפעלה בסוף ה-README ---
+    # --- Instructions Section (Bilingual) ---
     output.append(f"\n---")
-    output.append(f"## ⚙️ ניהול התיק (הוספת/עריכת מניות)")
-    output.append(f"ניתן לעדכן את המניות בתיק ישירות מהדפדפן ב-GitHub:")
-    output.append(f"1. נווטו לתיקייה `data_hub` ופתחו את הקובץ `portfolio.json`.")
-    output.append(f"2. לחצו על אייקון העיפרון (**Edit this file**).")
-    output.append(f"3. הוסיפו מניה חדשה במבנה של `\"TICKER\": AMOUNT`. לדוגמה: `\"NVDA\": 10`.")
-    output.append(f"4. לחצו על **Commit changes...** בתחתית העמוד.")
-    output.append(f"> הסקריפט יתעדכן אוטומטית בהרצה הבאה.")
+    output.append(f"## ⚙️ How to Update? | הוראות עדכון")
     
-    output.append(f"\n📂 *Data stored in `{DATA_DIR}`* | [Live Site](https://almog787.github.io/Sapa/)")
+    # English Instructions
+    output.append(f"### 🇺🇸 English")
+    output.append(f"To update your portfolio without downloading any files:")
+    output.append(f"1. Go to the `data_hub` folder and open `portfolio.json`.")
+    output.append(f"2. Click the **pencil icon** (Edit this file).")
+    output.append(f"3. Add or modify stocks in the format: `\"TICKER\": AMOUNT`. (Example: `\"AAPL\": 10`).")
+    output.append(f"4. Click **Commit changes** at the bottom.")
+    
+    # Hebrew Instructions
+    output.append(f"### 🇮🇱 עברית")
+    output.append(f"כדי לעדכן את המניות בתיק ללא הורדת קבצים:")
+    output.append(f"1. היכנסו לתיקייה `data_hub` ופתחו את הקובץ `portfolio.json`.")
+    output.append(f"2. לחצו על אייקון העיפרון (**Edit this file**).")
+    output.append(f"3. הוסיפו או עדכנו מניות בפורמט: `\"סימול\": כמות`. (לדוגמה: `\"TSLA\": 5`).")
+    output.append(f"4. לחצו על **Commit changes** בתחתית העמוד.\n")
+
+    output.append(f"📂 *Data stored in `{DATA_DIR}`* | [Live Site](https://almog787.github.io/Sapa/)")
 
     with open(README_FILE, 'w', encoding='utf-8') as f:
         f.write("\n".join(output))
