@@ -30,7 +30,7 @@ logging.basicConfig(filename=LOG_FILE, level=logging.ERROR,
 def archive_visuals():
     """Archive old visuals before creating new ones."""
     ts = datetime.now(TZ).strftime("%Y%m%d_%H%M")
-    for f in [CHART_FILE, PIE_FILE]:
+    for f in:
         if os.path.exists(f):
             name = os.path.basename(f)
             shutil.move(f, os.path.join(ARCHIVE_DIR, f"{ts}_{name}"))
@@ -40,7 +40,7 @@ def get_live_usd_ils():
     try:
         ticker = yf.Ticker("ILS=X")
         data = ticker.history(period="1d")
-        return data['Close'].iloc[-1] if not data.empty else 3.65
+        return data.iloc if not data.empty else 3.65
     except Exception as e:
         logging.error(f"Exchange rate error: {e}")
         return 3.65
@@ -51,13 +51,15 @@ def generate_visuals(df, holdings):
     
     # 1. Performance Graph
     plt.figure(figsize=(12, 6))
-    portfolio_norm = (df['total_usd'] / df['total_usd'].iloc[0]) * 100
-    plt.plot(df['ts'], portfolio_norm, label='My Portfolio', color='#1f77b4', linewidth=2.5)
+    portfolio_norm = (df / df.iloc) * 100
+    plt.plot(df, portfolio_norm, label='My Portfolio', color='#1f77b4', linewidth=2.5)
     
     try:
-        spy = yf.Ticker("^GSPC").history(start=df['ts'].min(), end=df['ts'].max() + timedelta(days=1))
+        spy = yf.Ticker("^GSPC").history(start=df.min(), end=df.max() + timedelta(days=1))
         if not spy.empty:
-            spy_norm = (spy['Close'] / spy['Close'].iloc[0]) * 100
+            # הסרת ה-Timezone מנתוני יאהו כדי שיסתנכרנו עם ציר הזמן של התיק שלנו
+            spy.index = spy.index.tz_localize(None) 
+            spy_norm = (spy / spy.iloc) * 100
             plt.plot(spy.index, spy_norm, label='S&P 500 (Benchmark)', color='#ff7f0e', linestyle='--', alpha=0.7)
     except Exception as e:
         logging.error(f"Benchmark error: {e}")
@@ -70,13 +72,16 @@ def generate_visuals(df, holdings):
 
     # 2. Asset Allocation
     plt.figure(figsize=(8, 8))
-    last_row = df.iloc[-1]
+    last_row = df.iloc
     tickers = list(holdings.keys())
-    values = [last_row[t] * holdings[t] for t in tickers if t in last_row]
-    labels = [t for t in tickers if t in last_row]
-    plt.pie(values, labels=labels, autopct='%1.1f%%', startangle=140, colors=plt.cm.Pastel1.colors)
-    plt.title('Asset Allocation (USD Weight)')
-    plt.savefig(PIE_FILE)
+    # נוודא שהמחיר לא ריק לפני שאנחנו מציירים בגרף
+    values = * holdings for t in tickers if t in last_row and pd.notnull(last_row)]
+    labels =)]
+    
+    if values:  # מצייר רק אם יש נתונים
+        plt.pie(values, labels=labels, autopct='%1.1f%%', startangle=140, colors=plt.cm.Pastel1.colors)
+        plt.title('Asset Allocation (USD Weight)')
+        plt.savefig(PIE_FILE)
     plt.close()
 
 def main():
@@ -98,81 +103,86 @@ def main():
     tickers = list(holdings.keys())
     
     # Process History Data
-    df = pd.DataFrame([{"ts": e['timestamp'], **e['prices']} for e in history])
-    df['ts'] = pd.to_datetime(df['ts']).dt.tz_localize(None)
+    df = pd.DataFrame(, **e} for e in history])
+    df = pd.to_datetime(df).dt.tz_localize(None)
     df = df.sort_values('ts')
     
-    # Portfolio Value Calculation
-    df['total_usd'] = df.apply(lambda r: sum(r[t] * holdings[t] for t in tickers if t in r and pd.notnull(r[t])), axis=1)
+    # משיכת מחיר קודם במקרה ש-API נכשל בדגימה מסוימת (מונע צניחה זמנית של שווי התיק)
+    df.ffill(inplace=True)
     
-    current_val_usd = df['total_usd'].iloc[-1]
-    initial_val_usd = df['total_usd'].iloc[0]
+    # Portfolio Value Calculation
+    df = df.apply(lambda r: sum(r * holdings for t in tickers if t in r and pd.notnull(r)), axis=1)
+    
+    current_val_usd = df.iloc
+    initial_val_usd = df.iloc
     total_ret = ((current_val_usd / initial_val_usd) - 1) * 100
 
     # --- Change Calculations ---
     
-    # 1. Daily Change (Last vs Previous)
+    # 1. Daily Change (Last vs ~24 hours ago)
     daily_change_pct, daily_change_ils = 0.0, 0.0
-    if len(df) >= 2:
-        prev_val_usd = df['total_usd'].iloc[-2]
-        daily_change_pct = ((current_val_usd / prev_val_usd) - 1) * 100
-        daily_change_ils = (current_val_usd - prev_val_usd) * usd_to_ils
+    one_day_ago = df.max() - timedelta(days=1)
+    past_day_df = df <= one_day_ago]
+    
+    if not past_day_df.empty:
+        prev_val_usd = past_day_df.iloc
+    else:
+        # Fallback to earliest record if less than a day of data
+        prev_val_usd = df.iloc
+        
+    daily_change_pct = ((current_val_usd / prev_val_usd) - 1) * 100
+    daily_change_ils = (current_val_usd - prev_val_usd) * usd_to_ils
 
     # 2. Weekly Change (Last vs ~7 days ago)
     weekly_change_pct, weekly_change_ils = 0.0, 0.0
-    one_week_ago = df['ts'].max() - timedelta(days=7)
-    past_week_df = df[df['ts'] <= one_week_ago]
+    one_week_ago = df.max() - timedelta(days=7)
+    past_week_df = df <= one_week_ago]
     
     if not past_week_df.empty:
-        weekly_val_usd = past_week_df.iloc[-1]['total_usd']
+        weekly_val_usd = past_week_df.iloc
     else:
         # Fallback to earliest record if less than a week of data
-        weekly_val_usd = df['total_usd'].iloc[0]
+        weekly_val_usd = df.iloc
         
     weekly_change_pct = ((current_val_usd / weekly_val_usd) - 1) * 100
     weekly_change_ils = (current_val_usd - weekly_val_usd) * usd_to_ils
 
     # Risk Metrics
-    rolling_max = df['total_usd'].cummax()
-    max_drawdown = ((df['total_usd'] / rolling_max) - 1).min() * 100
+    rolling_max = df.cummax()
+    max_drawdown = ((df / rolling_max) - 1).min() * 100
 
     # Stock Performance (Lifetime)
-    start_prices, last_prices = df.iloc[0], df.iloc[-1]
-    perf_map = {t: ((last_prices[t]/start_prices[t])-1)*100 for t in tickers if t in start_prices and t in last_prices}
+    perf_map = {}
+    for t in tickers:
+        if t in df.columns:
+            # מסנן חוסרים כדי שהמחיר הראשון למניה חדשה ייקלט נכון
+            valid_prices = df.dropna() 
+            if len(valid_prices) >= 2:
+                perf_map = ((valid_prices.iloc / valid_prices.iloc) - 1) * 100
+                
     best_stock = max(perf_map, key=perf_map.get) if perf_map else "N/A"
     worst_stock = min(perf_map, key=perf_map.get) if perf_map else "N/A"
 
     generate_visuals(df, holdings)
 
     # --- Build README ---
-    output = [
-        f"# 📊 Portfolio Dashboard",
-        f"**עודכן ב:** {datetime.now(TZ).strftime('%d/%m/%Y %H:%M')} | **שער דולר:** ₪{usd_to_ils:.3f}\n",
-        f"## 💰 סיכום ביצועים",
-        f"- **שווי תיק:** `₪{current_val_usd * usd_to_ils:,.0f}`",
-        f"- **שינוי יומי:** `{daily_change_pct:+.2f}%` (₪{daily_change_ils:,.0f})",
-        f"- **שינוי שבועי:** `{weekly_change_pct:+.2f}%` (₪{weekly_change_ils:,.0f})",
-        f"- **תשואה מצטברת:** `{total_ret:+.2f}%`",
-        f"- **מקס' ירידה (Drawdown):** `{max_drawdown:.2f}%`",
-        f"- **מניית הכוכב 🚀:** {best_stock} ({perf_map.get(best_stock, 0):+.1f}%)",
-        f"- **המאכזבת 📉:** {worst_stock} ({perf_map.get(worst_stock, 0):+.1f}%)\n",
-        f"## 📈 גרף ביצועים",
-        f"![Performance](./{CHART_FILE})\n",
+    output =(./{CHART_FILE})\n",
         f"## 🥧 התפלגות נכסים",
-        f"![Allocation](./{PIE_FILE})\n",
+        f"!(./{PIE_FILE})\n",
         f"## 📊 פירוט אחזקות",
         f"| מניה | כמות | שווי (₪) | משקל |",
         f"| :--- | :--- | :--- | :--- |"
     ]
 
+    last_prices = df.iloc
     for t in tickers:
-        if t in last_prices:
-            val_ils = last_prices[t] * holdings[t] * usd_to_ils
-            weight = (last_prices[t] * holdings[t] / current_val_usd) * 100
-            output.append(f"| {t} | {holdings[t]} | ₪{val_ils:,.0f} | {weight:.1f}% |")
+        if t in last_prices and pd.notnull(last_prices):
+            val_ils = last_prices * holdings * usd_to_ils
+            weight = (last_prices * holdings / current_val_usd) * 100
+            output.append(f"| {t} | {holdings} | ₪{val_ils:,.0f} | {weight:.1f}% |")
 
     output.append(f"\n---")
-    output.append(f"📂 *Data stored in `{DATA_DIR}`* | [Live Site](https://almog787.github.io/Sapa/)")
+    output.append(f"📂 *Data stored in `{DATA_DIR}`* |(https://almog787.github.io/Sapa/)")
 
     with open(README_FILE, 'w', encoding='utf-8') as f:
         f.write("\n".join(output))
