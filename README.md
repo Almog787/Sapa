@@ -1,27 +1,30 @@
-# 📊 Portfolio Dashboard | מעקב תיק השקעות
-**Last Update:** 09/03/2026 20:09 | **USD/ILS:** ₪3.105
+# 📊 Active Portfolio Dashboard | מעקב תיק השקעות
+> **Last Update:** `09/03/2026 20:17` | **Live USD/ILS Rate:** `₪3.106`
 
-## 💰 Portfolio Summary | סיכום התיק
+## 💎 Portfolio Snapshot | תמונת מצב
 | Metric | Value | נתון |
 | :--- | :--- | :--- |
-| **Current Value** | `₪161,444` | **שווי נוכחי** |
-| **Total Invested** | `₪130,429` | **סך השקעה** |
-| **Total Profit/Loss** | `+23.78%` (₪31,014) | **רווח/הפסד כולל** |
-| **Daily Change** | `+0.34%` | **שינוי יומי** |
+| **Current Value** | `₪161,661` | **שווי נוכחי** |
+| **Total Invested** | `₪130,454` | **סך השקעה** |
+| **Total Profit/Loss** | `+23.92%` (₪31,207) | **רווח/הפסד כולל** |
+| **Daily Change** | `+0.45%` | **שינוי יומי** |
+| **Max Drawdown** | `-25.36%` ⚠️ | **סיכון: צניחה מקסימלית** |
 
-## 📜 Holdings | פירוט החזקות
-| Ticker | Shares | Avg. Cost | Current Price | P&L % | P&L ILS |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| GOOGL | 45 | $181.15 | $301.32 | 🟢 +66.34% | ₪16,793 |
-| ASML | 4 | $934.51 | $1,324.96 | 🟢 +41.78% | ₪4,850 |
-| XOM | 2 | $126.08 | $151.40 | 🟢 +20.08% | ₪157 |
-| NVDA | 57 | $148.62 | $179.81 | 🟢 +20.99% | ₪5,521 |
-| TSLA | 20 | $436.45 | $390.06 | 🔴 -10.63% | ₪-2,881 |
-| VOO | 24 | $527.38 | $615.58 | 🟢 +16.72% | ₪6,574 |
+## 📜 Position Breakdown | פירוט החזקות
+| Ticker | Momentum | Shares | Avg. Cost | Current Price | P&L % | P&L ILS |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **GOOGL** | 🟩🟩🟩🟩🟩 | 45 | $181.15 | $301.65 | 🟢 **+66.52%** | ₪16,843 |
+| **ASML** | 🟩🟩🟩🟩⬜ | 4 | $934.51 | $1,327.80 | 🟢 **+42.09%** | ₪4,886 |
+| **XOM** | 🟩🟩⬜⬜⬜ | 2 | $126.08 | $151.37 | 🟢 **+20.06%** | ₪157 |
+| **NVDA** | 🟩🟩⬜⬜⬜ | 57 | $148.62 | $179.81 | 🟢 **+20.99%** | ₪5,522 |
+| **TSLA** | 🟥⬜⬜⬜⬜ | 20 | $436.45 | $391.19 | 🔴 **-10.37%** | ₪-2,812 |
+| **VOO** | 🟩⬜⬜⬜⬜ | 24 | $527.38 | $616.05 | 🟢 **+16.81%** | ₪6,610 |
 
-## 📈 Charts | גרפים
-![Performance](./data_hub/portfolio_performance.png)
+## 📈 Visual Analytics | ניתוח ויזואלי
+### Performance & Risk (Drawdown)
+![Performance & Drawdown](./data_hub/portfolio_performance.png)
+### Asset Allocation
 ![Allocation](./data_hub/asset_allocation.png)
 
 ---
-📂 *Created by Almog787*
+🛠️ *Automated by Stock-Mentor-Engine v5.0 | Created by Almog787*
